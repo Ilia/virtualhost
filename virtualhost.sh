@@ -5,9 +5,9 @@ TEXTDOMAIN=virtualhost
 ### Set default parameters
 action=$1
 domain=$2
-rootDir=$3
+
 owner=$(who am i | awk '{print $1}')
-email='webmaster@localhost'
+email="admin@$domain"
 sitesEnable='/etc/apache2/sites-enabled/'
 sitesAvailable='/etc/apache2/sites-available/'
 userDir='/var/www/'
@@ -32,16 +32,7 @@ do
 	read domain
 done
 
-if [ "$rootDir" == "" ]; then
-	rootDir=${domain//./}
-fi
-
-### if root dir starts with '/', don't use /var/www as default starting point
-if [[ "$rootDir" =~ ^/ ]]; then
-	userDir=''
-fi
-
-rootDir=$userDir$rootDir
+rootDir=$userDir$domain
 
 if [ "$action" == 'create' ]
 	then
@@ -55,37 +46,38 @@ if [ "$action" == 'create' ]
 		if ! [ -d $rootDir ]; then
 			### create the directory
 			mkdir $rootDir
+			mkdir "${rootDir}/public_html"
+			mkdir "${rootDir}/logs"
 			### give permission to root dir
-			chmod 755 $rootDir
+			chmod -R 755 $rootDir
 			### write test file in the new domain dir
-			if ! echo "<?php echo phpinfo(); ?>" > $rootDir/phpinfo.php
+			if ! echo "<?php echo 'Hello World!' ?>" > "${rootDir}/public_html/index.php"
 			then
-				echo $"ERROR: Not able to write in file $userDir/$rootDir/phpinfo.php. Please check permissions"
+				echo $"ERROR: Not able to write in file ${rootDir}/public_html/. Please check permissions"
 				exit;
 			else
-				echo $"Added content to $rootDir/phpinfo.php"
+				echo $"Added content to ${rootDir}/public_html/index.php"
 			fi
 		fi
 
 		### create virtual host rules file
 		if ! echo "
-		<VirtualHost *:80>
-			ServerAdmin $email
-			ServerName $domain
-			ServerAlias $domain
-			DocumentRoot $rootDir
-			<Directory />
-				AllowOverride All
-			</Directory>
-			<Directory $rootDir>
-				Options Indexes FollowSymLinks MultiViews
-				AllowOverride all
-				Require all granted
-			</Directory>
-			ErrorLog /var/log/apache2/$domain-error.log
-			LogLevel error
-			CustomLog /var/log/apache2/$domain-access.log combined
-		</VirtualHost>" > $sitesAvailabledomain
+<VirtualHost *:80>
+	ServerAdmin $email
+	ServerName $domain
+	ServerAlias $domain
+	DocumentRoot $rootDir/public_html/
+	<Directory />
+		AllowOverride All
+	</Directory>
+	<Directory $rootDir>
+		Options Indexes FollowSymLinks MultiViews
+		AllowOverride all
+		Require all granted
+	</Directory>
+	ErrorLog ${rootDir}/logs/error.log
+	CustomLog ${rootDir}/logs/access.log combined
+</VirtualHost>" > $sitesAvailabledomain
 		then
 			echo -e $"There is an ERROR creating $domain file"
 			exit;
